@@ -1,3 +1,4 @@
+import pytest
 from phantom.interval import Natural
 from phantom.predicates.generic import equal
 from phantom.predicates.generic import identical
@@ -11,8 +12,6 @@ from lb.lb import Rule
 from lb.lb import System
 from lb.lb import SystemBalance
 from lb.lb import Transaction
-
-import pytest
 
 
 class Account(BaseAccount):
@@ -29,9 +28,7 @@ is_balanced = Rule(
 )
 disallow_route = Rule(
     code="illegal_transaction",
-    metric=HasRoutes(
-        [(Account.customer, Account.captured)], bidirectional=True
-    ),
+    metric=HasRoutes([(Account.customer, Account.captured)], bidirectional=True),
     predicate=identical(False),
 )
 disallow_negative_balance = Rule(
@@ -97,10 +94,7 @@ def test_basics():
 
 
 def test_has_routes():
-    limited = System(
-        transactions=(),
-        rules=(disallow_route,)
-    )
+    limited = System(transactions=(), rules=(disallow_route,))
 
     with pytest.raises(InvalidSystem) as exc_info:
         limited.append(Transaction(Natural(1), Account.captured, Account.customer))
