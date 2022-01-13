@@ -6,7 +6,6 @@
 
 Little Bank is a framework for analyzing financial transactions.
 
-
 #### Design goals
 
 - All analysis should be a matter of summarizing credit, debit or balance of an account
