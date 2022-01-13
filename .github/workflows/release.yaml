@@ -1,0 +1,11 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-and-publish:
+    uses: antonagestam/python-build/.github/workflows/release.yaml@main
+    secrets:
+      pypi_api_token: ${{ secrets.PYPI_API_TOKEN }}
