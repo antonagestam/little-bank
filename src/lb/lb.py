@@ -156,11 +156,12 @@ class InvalidSystem(ValueError):
 
 
 S = TypeVar("S", bound="System")
+Txn = TypeVar("Txn", bound=Transactable)
 
 
 @dataclass(frozen=True, slots=True)
-class System:
-    transactions: tuple[Transactable, ...]
+class System(Generic[Txn]):
+    transactions: tuple[Txn, ...]
     rules: tuple[Rule, ...] = ()
 
     def verify(self) -> Generator[Rule, None, bool]:
@@ -175,10 +176,10 @@ class System:
         if violated_rules := tuple(self.verify()):
             raise InvalidSystem(violated_rules=violated_rules)
 
-    def __iter__(self) -> Iterator[Transactable]:
+    def __iter__(self) -> Iterator[Txn]:
         return iter(self.transactions)
 
-    def append(self: S, *transactions: Transactable) -> S:
+    def append(self: S, *transactions: Txn) -> S:
         return replace(
             self,
             rules=self.rules,
