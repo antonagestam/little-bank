@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import replace
+from decimal import Decimal
 from enum import Enum
+from typing import Callable
 from typing import Final
 from typing import Generator
 from typing import Generic
@@ -13,8 +16,11 @@ from typing import Sequence
 from typing import TypeVar
 from typing import final
 
-from phantom import Predicate
 from phantom.interval import Natural
+
+T = TypeVar("T", bound=object, contravariant=True)
+
+Predicate = Callable[[T], bool]
 
 
 class BaseAccount(Enum):
@@ -31,15 +37,25 @@ class BaseAccount(Enum):
         return Balance(self)
 
 
-A = TypeVar("A", bound=BaseAccount)
+A_co = TypeVar("A_co", bound=BaseAccount, covariant=True)
+N_co = TypeVar("N_co", int, Decimal, covariant=True)
 
 
-@final
-@dataclass(frozen=True, slots=True)
-class Transaction(Generic[A]):
-    value: Natural
-    credit: A
-    debit: A
+class Transactable(Protocol[A_co, N_co]):
+    @property
+    @abstractmethod
+    def value(self) -> N_co:
+        ...
+
+    @property
+    @abstractmethod
+    def credit(self) -> A_co:
+        ...
+
+    @property
+    @abstractmethod
+    def debit(self) -> A_co:
+        ...
 
 
 V_co = TypeVar("V_co", covariant=True)
@@ -48,7 +64,7 @@ V_co = TypeVar("V_co", covariant=True)
 class Metric(Protocol[V_co]):
     """A Metric is a function that extracts some value from a group of transactions."""
 
-    def __call__(self, transactions: Iterable[Transaction], /) -> V_co:
+    def __call__(self, transactions: Iterable[Transactable], /) -> V_co:
         ...
 
 
@@ -56,7 +72,7 @@ class Credit(Metric[Natural]):
     def __init__(self, account: BaseAccount) -> None:
         self.account: Final = account
 
-    def __call__(self, transactions: Iterable[Transaction], /) -> Natural:
+    def __call__(self, transactions: Iterable[Transactable], /) -> Natural:
         # Ignore because sum of Natural is Natural. Would be nice with support for that
         # in phantom-types.
         return sum(  # type: ignore[return-value]
@@ -68,7 +84,7 @@ class Debit(Metric[Natural]):
     def __init__(self, account: BaseAccount) -> None:
         self.account: Final = account
 
-    def __call__(self, transactions: Iterable[Transaction], /) -> Natural:
+    def __call__(self, transactions: Iterable[Transactable], /) -> Natural:
         return sum(  # type: ignore[return-value]
             tx.value for tx in transactions if tx.debit is self.account
         )
@@ -79,7 +95,7 @@ class Balance(Metric[int]):
         self.credit: Final = Credit(account)
         self.debit: Final = Debit(account)
 
-    def __call__(self, transactions: Iterable[Transaction], /) -> int:
+    def __call__(self, transactions: Iterable[Transactable], /) -> int:
         return self.debit(transactions) - self.credit(transactions)
 
 
@@ -87,20 +103,20 @@ class SystemBalance(Metric[int]):
     def __init__(self, accounts: Iterable[BaseAccount]) -> None:
         self.balances: Final = tuple(Balance(account) for account in accounts)
 
-    def __call__(self, transactions: Iterable[Transaction], /) -> int:
+    def __call__(self, transactions: Iterable[Transactable], /) -> int:
         return sum(balance(transactions) for balance in self.balances)
 
 
 class HasRoutes(Metric[bool]):
     def __init__(
         self,
-        routes: Sequence[tuple[A, A]],
+        routes: Sequence[tuple[A_co, A_co]],
         bidirectional: bool = False,
     ) -> None:
         self.routes: Final = routes
         self.bidirectional: Final = bidirectional
 
-    def __call__(self, transactions: Iterable[Transaction], /) -> bool:
+    def __call__(self, transactions: Iterable[Transactable], /) -> bool:
         for transaction in transactions:
             if (transaction.credit, transaction.debit) in self.routes or (
                 self.bidirectional
@@ -123,7 +139,7 @@ class Rule(Generic[V_co]):
     metric: Metric[V_co]
     predicate: Predicate[V_co]
 
-    def __call__(self, transactions: Iterable[Transaction], /) -> bool:
+    def __call__(self, transactions: Iterable[Transactable], /) -> bool:
         # mypy thinks self.predicate is a bool, there's an issue for this in mypy but
         # I can't find it currently.
         return self.predicate(  # type: ignore[no-any-return, operator]
@@ -144,7 +160,7 @@ S = TypeVar("S", bound="System")
 
 @dataclass(frozen=True, slots=True)
 class System:
-    transactions: tuple[Transaction, ...]
+    transactions: tuple[Transactable, ...]
     rules: tuple[Rule, ...] = ()
 
     def verify(self) -> Generator[Rule, None, bool]:
@@ -159,10 +175,10 @@ class System:
         if violated_rules := tuple(self.verify()):
             raise InvalidSystem(violated_rules=violated_rules)
 
-    def __iter__(self) -> Iterator[Transaction]:
+    def __iter__(self) -> Iterator[Transactable]:
         return iter(self.transactions)
 
-    def append(self: S, *transactions: Transaction) -> S:
+    def append(self: S, *transactions: Transactable) -> S:
         return replace(
             self,
             rules=self.rules,

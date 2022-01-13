@@ -1,5 +1,8 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
 import pytest
-from phantom.interval import Natural
 from phantom.predicates.generic import equal
 from phantom.predicates.generic import identical
 from phantom.predicates.numeric import ge
@@ -11,7 +14,6 @@ from lb.lb import InvalidSystem
 from lb.lb import Rule
 from lb.lb import System
 from lb.lb import SystemBalance
-from lb.lb import Transaction
 
 
 class Account(BaseAccount):
@@ -19,6 +21,13 @@ class Account(BaseAccount):
     reserved = "reserved"
     captured = "captured"
     authorized_refund = "authorized_refund"
+
+
+@dataclass(frozen=True, slots=True)
+class Transaction:
+    value: int
+    credit: Account
+    debit: Account
 
 
 is_balanced = Rule(
@@ -41,7 +50,7 @@ disallow_negative_balance = Rule(
 def test_basics():
     authorized = System(
         transactions=(
-            Transaction(Natural(200), credit=Account.customer, debit=Account.reserved),
+            Transaction(200, credit=Account.customer, debit=Account.reserved),
         ),
     )
     assert Account.reserved.balance(authorized) == 200
@@ -53,8 +62,8 @@ def test_basics():
 
     cancelled = System(
         transactions=(
-            Transaction(Natural(200), credit=Account.customer, debit=Account.reserved),
-            Transaction(Natural(200), credit=Account.reserved, debit=Account.customer),
+            Transaction(200, credit=Account.customer, debit=Account.reserved),
+            Transaction(200, credit=Account.reserved, debit=Account.customer),
         ),
     )
     assert Account.reserved.balance(cancelled) == 0
@@ -66,9 +75,9 @@ def test_basics():
 
     captured = System(
         transactions=(
-            Transaction(Natural(100), credit=Account.customer, debit=Account.reserved),
-            Transaction(Natural(100), credit=Account.customer, debit=Account.captured),
-            Transaction(Natural(100), credit=Account.reserved, debit=Account.captured),
+            Transaction(100, credit=Account.customer, debit=Account.reserved),
+            Transaction(100, credit=Account.customer, debit=Account.captured),
+            Transaction(100, credit=Account.reserved, debit=Account.captured),
         ),
         rules=(is_balanced, disallow_negative_balance),
     )
@@ -77,8 +86,8 @@ def test_basics():
     assert Account.captured.balance(captured) == 200
 
     refunded = captured.append(
-        Transaction(Natural(200), Account.captured, Account.authorized_refund),
-        Transaction(Natural(200), Account.authorized_refund, Account.customer),
+        Transaction(200, Account.captured, Account.authorized_refund),
+        Transaction(200, Account.authorized_refund, Account.customer),
     )
     assert Account.captured.balance(refunded) == 0
     assert Account.customer.balance(refunded) == 0
@@ -86,7 +95,7 @@ def test_basics():
     # Try to refund insufficient funds ...
     with pytest.raises(InvalidSystem) as exc_info:
         refunded.append(
-            Transaction(Natural(1), Account.captured, Account.authorized_refund),
+            Transaction(1, Account.captured, Account.authorized_refund),
         )
 
     (rule,) = exc_info.value.violated_rules
@@ -97,13 +106,13 @@ def test_has_routes():
     limited = System(transactions=(), rules=(disallow_route,))
 
     with pytest.raises(InvalidSystem) as exc_info:
-        limited.append(Transaction(Natural(1), Account.captured, Account.customer))
+        limited.append(Transaction(1, Account.captured, Account.customer))
 
     (rule,) = exc_info.value.violated_rules
     assert rule is disallow_route
 
     with pytest.raises(InvalidSystem) as exc_info:
-        limited.append(Transaction(Natural(1), Account.customer, Account.captured))
+        limited.append(Transaction(1, Account.customer, Account.captured))
 
     (rule,) = exc_info.value.violated_rules
     assert rule is disallow_route
