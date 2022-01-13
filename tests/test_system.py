@@ -103,7 +103,7 @@ def test_basics():
 
 
 def test_has_routes():
-    limited = System[Transaction](transactions=(), rules=(disallow_route,))
+    limited = System(transactions=tuple[Transaction](), rules=(disallow_route,))
 
     with pytest.raises(InvalidSystem) as exc_info:
         limited.append(Transaction(1, Account.captured, Account.customer))
