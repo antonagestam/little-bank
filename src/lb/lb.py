@@ -7,7 +7,6 @@ from decimal import Decimal
 from enum import Enum
 from typing import Callable
 from typing import Final
-from typing import Generator
 from typing import Generic
 from typing import Iterable
 from typing import Iterator
@@ -164,13 +163,10 @@ class System(Generic[Txn]):
     transactions: tuple[Txn, ...]
     rules: tuple[Rule, ...] = ()
 
-    def verify(self) -> Generator[Rule, None, bool]:
-        intact = True
+    def verify(self) -> Iterator[Rule]:
         for rule in self.rules:
             if not rule(self):
-                intact = False
                 yield rule
-        return intact
 
     def __post_init__(self) -> None:
         if violated_rules := tuple(self.verify()):
