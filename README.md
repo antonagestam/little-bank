@@ -11,6 +11,10 @@ Little Bank is a framework for analyzing financial transactions.
 - All analysis should be a matter of summarizing credit, debit or balance of an account
   in a system. The intention is to reduce bugs by making all analysis use the same
   numerical implementation.
+- This means that we're of the opinion that implementing filters and doing arithmetic on
+  transactions outside of little-bank code is _wrong_. If we find ourselves grasping to
+  do this, what we should instead do is introduce new accounts our possibly restructure
+  the flow between the existing ones.
 - Allow defining rules for a system in a declarative way.
 - Disallow mutation. The design encourages immutable, append-only transactions.
 - All operations that update the system are very similar: appending transactions which
