@@ -10,7 +10,7 @@ from typing import Final
 from typing import Generic
 from typing import Iterable
 from typing import Iterator
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 from typing import Sequence
 from typing import TypeVar
 from typing import final
@@ -123,6 +123,17 @@ class HasRoutes(Metric[bool]):
             ):
                 return True
         return False
+
+
+class HasOnlyRoutes(Metric[bool]):
+    def __init__(self, *routes: tuple[A_co, A_co]) -> None:
+        self.routes: Final = routes
+
+    def __call__(self, transactions: Iterable[Transactable], /) -> bool:
+        for transaction in transactions:
+            if (transaction.credit, transaction.debit) not in self.routes:
+                return False
+        return True
 
 
 @final

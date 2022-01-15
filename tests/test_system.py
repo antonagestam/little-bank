@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Iterable, Sequence
+from unittest import TestCase
 
 import pytest
 from phantom.predicates.generic import equal
 from phantom.predicates.generic import identical
-from phantom.predicates.numeric import ge
+from phantom.predicates.numeric import ge, le
 
 from lb.lb import Balance
 from lb.lb import BaseAccount
-from lb.lb import HasRoutes
+from lb.lb import HasRoutes, HasOnlyRoutes
 from lb.lb import InvalidSystem
 from lb.lb import Rule
 from lb.lb import System
@@ -20,7 +22,7 @@ class Account(BaseAccount):
     customer = "customer"
     reserved = "reserved"
     captured = "captured"
-    authorized_refund = "authorized_refund"
+    refunded = "refunded"
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,8 +88,8 @@ def test_basics():
     assert Account.captured.balance(captured) == 200
 
     refunded = captured.append(
-        Transaction(200, Account.captured, Account.authorized_refund),
-        Transaction(200, Account.authorized_refund, Account.customer),
+        Transaction(200, Account.captured, Account.refunded),
+        Transaction(200, Account.refunded, Account.customer),
     )
     assert Account.captured.balance(refunded) == 0
     assert Account.customer.balance(refunded) == 0
@@ -95,7 +97,7 @@ def test_basics():
     # Try to refund insufficient funds ...
     with pytest.raises(InvalidSystem) as exc_info:
         refunded.append(
-            Transaction(1, Account.captured, Account.authorized_refund),
+            Transaction(1, Account.captured, Account.refunded),
         )
 
     (rule,) = exc_info.value.violated_rules
@@ -116,3 +118,71 @@ def test_has_routes():
 
     (rule,) = exc_info.value.violated_rules
     assert rule is disallow_route
+
+
+realistic_system = System(
+    transactions=(),
+    rules=(
+        # Customer account should never have positive balance.
+        customer_overdrawn := Rule(
+            code="customer_overdrawn",
+            metric=Balance(Account.customer),
+            predicate=le(0),
+        ),
+        # Reserved account should never have negative balance.
+        reserved_overdrawn := Rule(
+            code="reserved_overdrawn",
+            metric=Balance(Account.reserved),
+            predicate=ge(0),
+        ),
+        # Captured account should never have negative balance.
+        captured_overdrawn := Rule(
+            code="captured_overdrawn",
+            metric=Balance(Account.captured),
+            predicate=ge(0),
+        ),
+        # Refunded account should always balance to zero. This is an "analysis-only"
+        # or "through" account.
+        refunded_non_zero := Rule(
+            code="refunded_non_zero",
+            metric=Balance(Account.refunded),
+            predicate=equal(0),
+        ),
+        # Disallow all routes not explicitly listed here.
+        illegal_route := Rule(
+            code="illegal_route",
+            metric=HasOnlyRoutes(
+                (Account.customer, Account.reserved),
+                (Account.reserved, Account.customer),
+                (Account.reserved, Account.captured),
+                (Account.captured, Account.refunded),
+                (Account.refunded, Account.customer),
+            ),
+            predicate=identical(True),
+        ),
+    ),
+)
+
+case = TestCase()
+
+@pytest.mark.parametrize(
+    "transactions, violated_rules",
+    (
+        # (
+        #     (Transaction(1, Account.captured, Account.customer),),
+        #     (illegal_route,)
+        # ),
+        (
+            (Transaction(1, Account.customer, Account.captured),),
+            (illegal_route,)
+        ),
+    )
+)
+def test_realistic_system_raises(
+    transactions: Sequence[Transaction],
+    violated_rules: Sequence[Rule],
+):
+    with pytest.raises(InvalidSystem) as exc_info:
+        realistic_system.append(*transactions)
+
+    case.assertCountEqual(exc_info.value.violated_rules, violated_rules)
