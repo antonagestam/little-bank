@@ -20,3 +20,9 @@ Little Bank is a framework for analyzing financial transactions.
 - All operations that update the system are very similar: appending transactions which
   automatically verifies all defined rules, and persisting the new transactions. This
   allows centralizing code that saves transactions to a single place.
+
+#### Non-goals
+
+- Performance. This library is intended to be used to analyze systems of a small number
+  of transactions. Therefor exposing APIs that are easy to reason about is a much higher
+  priority than performance.
