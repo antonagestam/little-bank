@@ -1,0 +1,1 @@
+{"source_ecosystem":{"language":"python","version":"3.13"},"source_dependencies":["mypy","phantom-types","pytest"],"lock_files":[{"path":"requirements.txt","checksum":"sha256:666631d5f8cb72c0cc131f9520be55bedf812724b71fde9bf59db56cb65b3906"}],"checksum":"sha256:bfbd6e46a05aa621f44f766e383d08b0de1817cb44682c6a4096034133c2fcff"}

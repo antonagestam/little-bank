@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+from collections.abc import Callable
+from collections.abc import Iterable
+from collections.abc import Iterator
+from collections.abc import Sequence
 from dataclasses import dataclass
 from dataclasses import replace
 from decimal import Decimal
 from enum import Enum
-from typing import Callable
 from typing import Final
 from typing import Generic
-from typing import Iterable
-from typing import Iterator
 from typing import Protocol
-from typing import Sequence
 from typing import TypeVar
 from typing import final
 
@@ -43,18 +43,13 @@ N_co = TypeVar("N_co", int, Decimal, covariant=True)
 class Transactable(Protocol[A_co, N_co]):
     @property
     @abstractmethod
-    def value(self) -> N_co:
-        ...
-
+    def value(self) -> N_co: ...
     @property
     @abstractmethod
-    def credit(self) -> A_co:
-        ...
-
+    def credit(self) -> A_co: ...
     @property
     @abstractmethod
-    def debit(self) -> A_co:
-        ...
+    def debit(self) -> A_co: ...
 
 
 V_co = TypeVar("V_co", covariant=True)
@@ -63,8 +58,7 @@ V_co = TypeVar("V_co", covariant=True)
 class Metric(Protocol[V_co]):
     """A Metric is a function that extracts some value from a group of transactions."""
 
-    def __call__(self, transactions: Iterable[Transactable], /) -> V_co:
-        ...
+    def __call__(self, transactions: Iterable[Transactable], /) -> V_co: ...
 
 
 class Credit(Metric[Natural]):
@@ -74,7 +68,7 @@ class Credit(Metric[Natural]):
     def __call__(self, transactions: Iterable[Transactable], /) -> Natural:
         # Ignore because sum of Natural is Natural. Would be nice with support for that
         # in phantom-types.
-        return sum(  # type: ignore[return-value]
+        return sum(  # type: ignore[no-any-return]
             tx.value for tx in transactions if tx.credit is self.account
         )
 
@@ -84,7 +78,7 @@ class Debit(Metric[Natural]):
         self.account: Final = account
 
     def __call__(self, transactions: Iterable[Transactable], /) -> Natural:
-        return sum(  # type: ignore[return-value]
+        return sum(  # type: ignore[no-any-return]
             tx.value for tx in transactions if tx.debit is self.account
         )
 
@@ -139,11 +133,7 @@ class Rule(Generic[V_co]):
     predicate: Predicate[V_co]
 
     def __call__(self, transactions: Iterable[Transactable], /) -> bool:
-        # mypy thinks self.predicate is a bool, there's an issue for this in mypy but
-        # I can't find it currently.
-        return self.predicate(  # type: ignore[no-any-return, operator]
-            self.metric(transactions)
-        )
+        return self.predicate(self.metric(transactions))
 
     def __str__(self) -> str:
         return f"Rule(code={self.code})"

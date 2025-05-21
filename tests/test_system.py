@@ -47,7 +47,7 @@ disallow_negative_balance = Rule(
 )
 
 
-def test_basics():
+def test_basics() -> None:
     authorized = System(
         transactions=(
             Transaction(200, credit=Account.customer, debit=Account.reserved),
@@ -102,7 +102,7 @@ def test_basics():
     assert rule is disallow_negative_balance
 
 
-def test_has_routes():
+def test_has_routes() -> None:
     limited = System(transactions=tuple[Transaction](), rules=(disallow_route,))
 
     with pytest.raises(InvalidSystem) as exc_info:

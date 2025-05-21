@@ -1,25 +1,27 @@
 name: CI
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  COLUMNS: "120"
+  FORCE_COLOR: "1"
+  PYTHONUNBUFFERED: "1"
 
 jobs:
   lint:
     name: Static analysis
-    uses: less-action/reusables/.github/workflows/pre-commit.yaml@v1
-    with:
-      python-version: "3.10"
+    uses: antonagestam/goose/.github/workflows/run.yaml@0.10.1
 
-  # docs:
-  #   name: Build Sphinx Docs
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #     - uses: ammaraskar/sphinx-action@0.4
-  #       with:
-  #         docs-folder: "docs/"
+  check-build:
+    name: Check packaging metadata
+    uses: less-action/reusables/.github/workflows/python-test-build.yaml@main
 
   test:
     name: Test
@@ -28,16 +30,14 @@ jobs:
       matrix:
         python-version: ["3.10"]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: pip cache
-        uses: actions/cache@v1
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('setup.cfg') }}
-          restore-keys: ${{ runner.os }}-pip
+          cache: pip
+          cache-dependency-path: pyproject.toml
+          check-latest: true
+          allow-prereleases: true
       - run: pip install -e '.[test]'
       - run: pytest

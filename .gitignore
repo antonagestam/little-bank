@@ -134,3 +134,6 @@ dmypy.json
 
 # pytype static type analyzer
 .pytype/
+
+# Dynamically generated version file.
+src/*/_version.py
