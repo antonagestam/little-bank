@@ -100,7 +100,9 @@ class HasRoutes(Metric[bool]):
 
     def __call__(self, transactions: Iterable[Transactable], /) -> bool:
         for transaction in transactions:
-            if (transaction.credit, transaction.debit) in self.routes or (
+            if (transaction.credit, transaction.debit) in self.routes:
+                return True
+            if (
                 self.bidirectional
                 and (transaction.debit, transaction.credit) in self.routes
             ):
