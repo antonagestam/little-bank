@@ -1,5 +1,5 @@
 fix = true
-target-version = "py310"
+target-version = "py313"
 
 [lint]
 extend-select = [
