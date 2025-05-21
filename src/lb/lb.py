@@ -10,16 +10,12 @@ from dataclasses import replace
 from decimal import Decimal
 from enum import Enum
 from typing import Final
-from typing import Generic
 from typing import Protocol
-from typing import TypeVar
 from typing import final
 
 from phantom.interval import Natural
 
-T = TypeVar("T", bound=object, contravariant=True)
-
-Predicate = Callable[[T], bool]
+type Predicate[T: object] = Callable[[T], bool]
 
 
 class BaseAccount(Enum):
@@ -36,29 +32,22 @@ class BaseAccount(Enum):
         return Balance(self)
 
 
-A_co = TypeVar("A_co", bound=BaseAccount, covariant=True)
-N_co = TypeVar("N_co", int, Decimal, covariant=True)
-
-
-class Transactable(Protocol[A_co, N_co]):
+class Transactable[A: BaseAccount, N: int | Decimal](Protocol):
     @property
     @abstractmethod
-    def value(self) -> N_co: ...
+    def value(self) -> N: ...
     @property
     @abstractmethod
-    def credit(self) -> A_co: ...
+    def credit(self) -> A: ...
     @property
     @abstractmethod
-    def debit(self) -> A_co: ...
+    def debit(self) -> A: ...
 
 
-V_co = TypeVar("V_co", covariant=True)
-
-
-class Metric(Protocol[V_co]):
+class Metric[V](Protocol):
     """A Metric is a function that extracts some value from a group of transactions."""
 
-    def __call__(self, transactions: Iterable[Transactable], /) -> V_co: ...
+    def __call__(self, transactions: Iterable[Transactable], /) -> V: ...
 
 
 class Credit(Metric[Natural]):
@@ -101,9 +90,9 @@ class SystemBalance(Metric[int]):
 
 
 class HasRoutes(Metric[bool]):
-    def __init__(
+    def __init__[A: BaseAccount](
         self,
-        routes: Sequence[tuple[A_co, A_co]],
+        routes: Sequence[tuple[A, A]],
         bidirectional: bool = False,
     ) -> None:
         self.routes: Final = routes
@@ -121,7 +110,7 @@ class HasRoutes(Metric[bool]):
 
 @final
 @dataclass(frozen=True, slots=True)
-class Rule(Generic[V_co]):
+class Rule[V]:
     """
     A rule is a combination of a metric and a predicate. A system can have many rules,
     and guarantees not to violate them by checking all rules in a pre-condition
@@ -129,8 +118,8 @@ class Rule(Generic[V_co]):
     """
 
     code: str
-    metric: Metric[V_co]
-    predicate: Predicate[V_co]
+    metric: Metric[V]
+    predicate: Predicate[V]
 
     def __call__(self, transactions: Iterable[Transactable], /) -> bool:
         return self.predicate(self.metric(transactions))
@@ -144,12 +133,8 @@ class InvalidSystem(ValueError):
     violated_rules: tuple[Rule, ...]
 
 
-S = TypeVar("S", bound="System")
-Txn = TypeVar("Txn", bound=Transactable)
-
-
 @dataclass(frozen=True, slots=True)
-class System(Generic[Txn]):
+class System[Txn: Transactable]:
     transactions: tuple[Txn, ...]
     rules: tuple[Rule, ...] = ()
 
@@ -165,7 +150,7 @@ class System(Generic[Txn]):
     def __iter__(self) -> Iterator[Txn]:
         return iter(self.transactions)
 
-    def append(self: S, *transactions: Txn) -> S:
+    def append[S: System](self: S, *transactions: Txn) -> S:
         return replace(
             self,
             rules=self.rules,
